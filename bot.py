@@ -27,7 +27,7 @@ PREMIUM_DAILY_LIMIT = int(os.environ.get("PREMIUM_DAILY_LIMIT", 10))
 REFERRAL_BONUS = int(os.environ.get("REFERRAL_BONUS", 2))
 PRICE_FA = os.environ.get("PRICE_FA", "۲۰۰,۰۰۰")
 
-# ======================== متغیرهای محیطی آمار دستی ========================
+# ======================== متغیرهای محیطی آمار ========================
 STATS_TOTAL_USERS = int(os.environ.get("STATS_TOTAL_USERS", "0"))
 STATS_SUBSCRIBED = int(os.environ.get("STATS_SUBSCRIBED", "0"))
 STATS_FREE_USERS = int(os.environ.get("STATS_FREE_USERS", "0"))
@@ -631,6 +631,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ======================== دستورات ادمین ========================
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نمایش آمار دستی (تنظیم شده در رندر) - فقط اعداد"""
     try:
         user_id = update.message.from_user.id
         
@@ -638,13 +639,35 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⛔ دسترسی محدود!")
             return
         
-        # دریافت آمار از متغیرهای محیطی
-        total_users = STATS_TOTAL_USERS
-        subscribed = STATS_SUBSCRIBED
-        free_users = STATS_FREE_USERS
-        active_today = STATS_ACTIVE_TODAY
+        keyboard = [
+            [InlineKeyboardButton("📊 آمار کلی", callback_data='admin_stats')],
+            [InlineKeyboardButton("👥 لیست کاربران", callback_data='admin_users')],
+            [InlineKeyboardButton("➕ فعال‌سازی اشتراک", callback_data='admin_activate')],
+            [InlineKeyboardButton("➖ لغو اشتراک", callback_data='admin_remove')],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data='main_menu')]
+        ]
         
-        # آمار از دیتابیس
+        await update.message.reply_text(
+            f"👑 پنل ادمین\n\n"
+            f"👥 کل کاربران: {STATS_TOTAL_USERS}\n"
+            f"✅ اشتراک فعال: {STATS_SUBSCRIBED}\n"
+            f"📌 کاربران عادی: {STATS_FREE_USERS}\n"
+            f"🔥 فعال امروز: {STATS_ACTIVE_TODAY}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception as e:
+        logger.error(f"خطا در admin_panel: {e}")
+        await update.message.reply_text("❌ خطایی رخ داده است.")
+
+async def admin_pro_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نمایش آمار واقعی از دیتابیس"""
+    try:
+        user_id = update.message.from_user.id
+        
+        if user_id != ADMIN_ID:
+            await update.message.reply_text("⛔ دسترسی محدود!")
+            return
+        
         data = load_data()
         db_total = len(data)
         db_subscribed = sum(1 for u in data.values() if u.get("subscription", {}).get("active", False))
@@ -653,31 +676,19 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_active = sum(1 for u in data.values() if u.get("last_date") == today)
         
         keyboard = [
-            [InlineKeyboardButton("📊 آمار کلی", callback_data='admin_stats')],
-            [InlineKeyboardButton("👥 لیست کاربران", callback_data='admin_users')],
-            [InlineKeyboardButton("➕ فعال‌سازی اشتراک", callback_data='admin_activate')],
-            [InlineKeyboardButton("➖ لغو اشتراک", callback_data='admin_remove')],
-            [InlineKeyboardButton("🔄 بروزرسانی آمار", callback_data='admin_refresh_stats')],
             [InlineKeyboardButton("🔙 بازگشت", callback_data='main_menu')]
         ]
         
         await update.message.reply_text(
-            f"👑 پنل ادمین\n\n"
-            f"📊 آمار دستی (تنظیم شده در رندر):\n"
-            f"👥 کل کاربران: {total_users}\n"
-            f"✅ اشتراک فعال: {subscribed}\n"
-            f"📌 کاربران عادی: {free_users}\n"
-            f"🔥 فعال امروز: {active_today}\n\n"
-            f"📊 آمار خودکار (از دیتابیس):\n"
+            f"📊 آمار واقعی\n\n"
             f"👥 کل کاربران: {db_total}\n"
             f"✅ اشتراک فعال: {db_subscribed}\n"
             f"📌 کاربران عادی: {db_free}\n"
-            f"🔥 فعال امروز: {db_active}\n\n"
-            f"💡 برای تغییر آمار دستی، متغیرهای محیطی رندر را ویرایش کنید.",
+            f"🔥 فعال امروز: {db_active}",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except Exception as e:
-        logger.error(f"خطا در admin_panel: {e}")
+        logger.error(f"خطا در admin_pro_panel: {e}")
         await update.message.reply_text("❌ خطایی رخ داده است.")
 
 async def admin_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -691,41 +702,14 @@ async def admin_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         if query.data == 'admin_stats':
-            total_users = STATS_TOTAL_USERS
-            subscribed = STATS_SUBSCRIBED
-            free_users = STATS_FREE_USERS
-            active_today = STATS_ACTIVE_TODAY
-            
-            data = load_data()
-            db_total = len(data)
-            db_subscribed = sum(1 for u in data.values() if u.get("subscription", {}).get("active", False))
-            db_free = db_total - db_subscribed
-            today = str(date.today())
-            db_active = sum(1 for u in data.values() if u.get("last_date") == today)
-            
             await query.edit_message_text(
-                f"📊 آمار کلی:\n\n"
-                f"🔹 آمار دستی (متغیرهای رندر):\n"
-                f"👥 کل کاربران: {total_users}\n"
-                f"✅ اشتراک فعال: {subscribed}\n"
-                f"📌 کاربران عادی: {free_users}\n"
-                f"🔥 فعال امروز: {active_today}\n\n"
-                f"🔸 آمار خودکار (دیتابیس):\n"
-                f"👥 کل کاربران: {db_total}\n"
-                f"✅ اشتراک فعال: {db_subscribed}\n"
-                f"📌 کاربران عادی: {db_free}\n"
-                f"🔥 فعال امروز: {db_active}\n\n"
-                f"💡 برای تغییر آمار دستی:\n"
-                f"۱- به پنل رندر بروید\n"
-                f"۲- متغیرهای محیطی را ویرایش کنید\n"
-                f"۳- سرویس را ری‌استارت کنید",
+                f"📊 آمار کلی\n\n"
+                f"👥 کل کاربران: {STATS_TOTAL_USERS}\n"
+                f"✅ اشتراک فعال: {STATS_SUBSCRIBED}\n"
+                f"📌 کاربران عادی: {STATS_FREE_USERS}\n"
+                f"🔥 فعال امروز: {STATS_ACTIVE_TODAY}",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data='admin_panel_back')]])
             )
-            return
-        
-        elif query.data == 'admin_refresh_stats':
-            await query.edit_message_text("🔄 در حال بروزرسانی آمار...")
-            await admin_panel(update, context)
             return
         
         elif query.data == 'admin_users':
@@ -838,6 +822,7 @@ def run_bot():
             
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CommandHandler("admin", admin_panel))
+            application.add_handler(CommandHandler("adminpro", admin_pro_panel))
             application.add_handler(CommandHandler("activate", activate_user))
             application.add_handler(CommandHandler("remove", remove_user))
             
