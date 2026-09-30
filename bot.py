@@ -239,7 +239,6 @@ def periodic_save():
 
 # ======================== INTRO PAGE ========================
 async def intro_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """پیام معرفی ربات برای کاربر جدید"""
     user_id = update.effective_user.id
     user = get_user(user_id)
     support = admin_config.get("support", SUPPORT)
@@ -273,7 +272,6 @@ async def intro_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
 
 async def intro_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بعد از کلیک روی متوجه شدم"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -284,7 +282,6 @@ async def intro_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ======================== CHANNELS PAGE ========================
 async def show_channels_page(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
-    """صفحه عضویت در کانال‌ها"""
     user = get_user(user_id)
     channels = admin_config.get("channels", [])
     enabled_channels = [c for c in channels if c.get("enabled", True)]
@@ -473,17 +470,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 save_user(user_id, user)
                 break
     
-    # ✅ اگر کاربر جدید است، پیام معرفی را نشان بده
     if not user.get("intro_seen", False):
         await intro_page(update, context)
         return
     
-    # اگر قبلاً هدیه گرفته، منوی اصلی
     if user.get("free_gift_used", False):
         await show_main_menu(update, context, user_id)
         return
     
-    # اگر تازه وارد شده، صفحه عضویت
     await show_channels_page(update, context, user_id)
 
 async def check_gift(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -524,6 +518,26 @@ async def check_gift(update: Update, context: ContextTypes.DEFAULT_TYPE):
             referrer["referral_gift"] = referrer.get("referral_gift", 0) + referral_gift
             add_transaction(referrer_id, referral_gift, "referral_gift", f"هدیه دعوت {format_number(referral_gift)} {CURRENCY}")
             save_user(referrer_id, referrer)
+            save_json(DATA_FILE, users)
+            
+            # ✅ ارسال پیام به دعوت‌کننده
+            try:
+                await context.bot.send_message(
+                    referrer_id,
+                    f"""<b>🎉 یک عضو جدید با لینک شما عضو شد!</b>
+
+👤 کاربر جدید: @{user['username'] or user_id}
+🎁 شارژ هدیه: {format_number(referral_gift)} {CURRENCY} به حساب شما اضافه شد.
+
+<b>📊 آمار دعوت‌های شما:</b>
+👥 کل دعوت‌ها: {referrer.get('referral_count', 0)}
+💰 کل هدیه دریافتی: {format_number(referrer.get('referral_gift', 0))} {CURRENCY}
+
+🎰 از این به بعد، از هر برد این زیرمجموعه ۱۰٪ پورسانت دریافت می‌کنید!""",
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                pass
         
         text = f"""✅ <b>تبریک! عضویت شما تأیید شد.</b>
 
@@ -601,7 +615,7 @@ async def earnings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🆘 پشتیبانی: {support}"""
     
     keyboard = [
-        [InlineKeyboardButton("🔗 کپی لینک دعوت", url=f"https://t.me/share/url?url={link}")],
+        [InlineKeyboardButton("🔗 اشتراک لینک دعوت", url=f"https://t.me/share/url?url={link}")],
         [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
@@ -1266,7 +1280,6 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user.get("has_deposited", False):
         bonus_text = "<b>🎁 هدیه واریز اول: ۵۰٪ (تا سقف ۵ میلیون تومان)</b>\n\n"
     
-    # بخش کارت‌ها
     if enabled_cards:
         cards_text = ""
         for i, card in enumerate(enabled_cards, 1):
