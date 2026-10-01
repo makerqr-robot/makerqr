@@ -38,7 +38,7 @@ REFERRAL_GIFT = 250000
 MIN_WITHDRAW = 500000
 MIN_DEPOSIT = 500000
 COMMISSION_PERCENT = 30
-BET_COMMISSION_PERCENT = 10
+BET_COMMISSION_PERCENT = 20
 INITIAL_BALANCE = 0
 INACTIVE_BONUS = 50000
 INACTIVE_HOURS = 24
@@ -241,35 +241,30 @@ def periodic_save():
 async def intro_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = get_user(user_id)
-    support = admin_config.get("support", SUPPORT)
     
     keyboard = [
         [InlineKeyboardButton("✅ متوجه شدم، ادامه", callback_data="intro_done")]
     ]
     
-    text = f"""🎰 <b>به شرطینو خوش آمدید!</b>
-
+    text = """🎰 به شرطینو خوش آمدید!
 
 🎮 شرطینو یک ربات شرط‌بندی و سرگرمی آنلاین است.
 
-<b>💡 چطور کار می‌کند؟</b>
+💡 چطور کار می‌کند؟
 
 • با انواع بازی مختلف شرط می‌بندید
 • برنده می‌شوید و موجودی‌تان افزایش می‌یابد
 • موجودی را به ریال برداشت می‌کنید
-
 ━━━━━━━━━━━━━
-<b>🎁 هدایای شما:</b>
+🎁 هدایای شما:
 • هدیه عضویت: ۱۰۰,۰۰۰ تومان
 • هدیه دعوت از هر دوست: ۲۵۰,۰۰۰ تومان
 • پورسانت ۱۰٪ از برد زیرمجموعه
-
 ━━━━━━━━━━━━━
-🆘 پشتیبانی: {support}
 
 👇 برای شروع، روی دکمه زیر کلیک کنید:"""
     
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def intro_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2882,6 +2877,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_balance_action))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_withdraw_info))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
+    app.add_handler(MessageHandler(filters.Document.ALL, restore))
     
     print("🤖 شرطینو روشن شد...")
     try:
