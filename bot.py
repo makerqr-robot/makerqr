@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 شرطینو - ربات شرط‌بندی فارسی
-نسخه نهایی با بهینه‌سازی سرعت
+نسخه نهایی با بهینه‌سازی سرعت + Backup/Restore
 """
 
 import os
@@ -2655,6 +2655,90 @@ async def amar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(text, parse_mode="HTML")
 
+# ======================== COMMAND BACKUP ========================
+async def backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ارسال فایل Backup دیتابیس به ادمین"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ این دستور فقط برای ادمین است.")
+        return
+    
+    save_json(DATA_FILE, users)
+    save_json(ADMIN_CONFIG_FILE, admin_config)
+    
+    try:
+        with open(DATA_FILE, 'rb') as f:
+            await update.message.reply_document(
+                document=f,
+                filename=f"users_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                caption=f"""<b>📦 فایل Backup دیتابیس</b>
+
+👥 تعداد کاربران: {len(users)}
+💰 کل موجودی: {format_number(sum(u.get('balance', 0) for u in users.values()))} {CURRENCY}
+📅 تاریخ: {datetime.now().strftime('%Y/%m/%d - %H:%M')}
+
+⚠️ این فایل را در جای امن نگهداری کنید.
+
+📌 برای بازیابی: فایل را با کپشن /restore ارسال کنید.""",
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا در ارسال فایل: {e}")
+
+# ======================== COMMAND RESTORE ========================
+async def restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """بازیابی دیتابیس از فایل Backup"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ این دستور فقط برای ادمین است.")
+        return
+    
+    if not update.message.document:
+        await update.message.reply_text(
+            """<b>❌ نحوه استفاده:</b>
+/restore (همراه با فایل JSON)
+
+فایل Backup را با کپشن /restore ارسال کنید.
+
+📌 ابتدا با دستور /backup فایل بگیرید.""",
+            parse_mode="HTML")
+        return
+    
+    try:
+        file = await context.bot.get_file(update.message.document.file_id)
+        file_content = await file.download_as_bytearray()
+        new_users = json.loads(file_content.decode('utf-8'))
+        
+        if not isinstance(new_users, dict):
+            await update.message.reply_text("❌ فایل نامعتبر است.")
+            return
+        
+        global users
+        old_count = len(users)
+        users = new_users
+        new_count = len(users)
+        save_json(DATA_FILE, users)
+        
+        total_balance = sum(u.get('balance', 0) for u in users.values())
+        
+        await update.message.reply_text(
+            f"""<b>✅ دیتابیس با موفقیت بازیابی شد!</b>
+
+📊 <b>آمار قبلی:</b>
+👥 کاربران: {old_count}
+
+📊 <b>آمار جدید:</b>
+👥 کاربران: {new_count}
+💰 کل موجودی: {format_number(total_balance)} {CURRENCY}
+📅 تاریخ بازیابی: {datetime.now().strftime('%Y/%m/%d - %H:%M')}
+
+✅ همه اطلاعات با موفقیت بارگذاری شد.""",
+            parse_mode="HTML")
+    except json.JSONDecodeError:
+        await update.message.reply_text("❌ فایل JSON نامعتبر است.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا در بازیابی: {e}")
+
 # ======================== INACTIVE USERS CHECK ========================
 async def check_inactive_users(app: Application):
     bot = app.bot
@@ -2729,6 +2813,8 @@ def main():
     app.add_handler(CommandHandler("ersal", ersal))
     app.add_handler(CommandHandler("ersalphoto", ersalphoto))
     app.add_handler(CommandHandler("amar", amar))
+    app.add_handler(CommandHandler("backup", backup))
+    app.add_handler(CommandHandler("restore", restore))
     
     # Callbacks
     app.add_handler(CallbackQueryHandler(intro_done, pattern="^intro_done$"))
